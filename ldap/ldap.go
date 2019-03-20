@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	ldap "gopkg.in/ldap.v2"
+	ldap "gopkg.in/ldap.v3"
 )
 
 type LDAP_CONFIG struct {
@@ -17,8 +17,9 @@ type LDAP_CONFIG struct {
 	Attributes []string `json:"attributes"`
 	TLS        bool     `json:"tls"`
 	StartTLS   bool     `json:"startTLS"`
-	Conn       *ldap.Conn
 }
+
+var Conn *ldap.Conn
 
 type LDAP_RESULT struct {
 	DN         string              `json:"dn"`
@@ -26,32 +27,32 @@ type LDAP_RESULT struct {
 }
 
 func (lc *LDAP_CONFIG) Close() {
-	if lc.Conn != nil {
-		lc.Conn.Close()
-		lc.Conn = nil
+	if Conn != nil {
+		Conn.Close()
+		Conn = nil
 	}
 }
 
 func (lc *LDAP_CONFIG) Connect() (err error) {
 	if lc.TLS {
-		lc.Conn, err = ldap.DialTLS("tcp", lc.Addr, &tls.Config{InsecureSkipVerify: true})
+		Conn, err = ldap.DialTLS("tcp", lc.Addr, &tls.Config{InsecureSkipVerify: true})
 	} else {
-		lc.Conn, err = ldap.Dial("tcp", lc.Addr)
+		Conn, err = ldap.Dial("tcp", lc.Addr)
 	}
 	if err != nil {
 		return err
 	}
 	if !lc.TLS && lc.StartTLS {
-		err = lc.Conn.StartTLS(&tls.Config{InsecureSkipVerify: true})
+		err = Conn.StartTLS(&tls.Config{InsecureSkipVerify: true})
 		if err != nil {
-			lc.Conn.Close()
+			Conn.Close()
 			return err
 		}
 	}
 
-	err = lc.Conn.Bind(lc.BindDn, lc.BindPass)
+	err = Conn.Bind(lc.BindDn, lc.BindPass)
 	if err != nil {
-		lc.Conn.Close()
+		Conn.Close()
 		return err
 	}
 	return err
@@ -65,7 +66,7 @@ func (lc *LDAP_CONFIG) Auth(username, password string) (success bool, err error)
 		lc.Attributes,                        // A list attributes to retrieve
 		nil,
 	)
-	sr, err := lc.Conn.Search(searchRequest)
+	sr, err := Conn.Search(searchRequest)
 	if err != nil {
 		return
 	}
@@ -77,12 +78,12 @@ func (lc *LDAP_CONFIG) Auth(username, password string) (success bool, err error)
 		err = errors.New("Multi users in search")
 		return
 	}
-	err = lc.Conn.Bind(sr.Entries[0].DN, password)
+	err = Conn.Bind(sr.Entries[0].DN, password)
 	if err != nil {
 		return
 	}
 	//Rebind as the search user for any further queries
-	err = lc.Conn.Bind(lc.BindDn, lc.BindPass)
+	err = Conn.Bind(lc.BindDn, lc.BindPass)
 	if err != nil {
 		return
 	}
@@ -98,7 +99,7 @@ func (lc *LDAP_CONFIG) Search_User(username string) (user LDAP_RESULT, err error
 		lc.Attributes,                        // A list attributes to retrieve
 		nil,
 	)
-	sr, err := lc.Conn.Search(searchRequest)
+	sr, err := Conn.Search(searchRequest)
 	if err != nil {
 		return
 	}
@@ -129,7 +130,7 @@ func (lc *LDAP_CONFIG) Search(SearchFilter string) (results []LDAP_RESULT, err e
 		lc.Attributes, // A list attributes to retrieve
 		nil,
 	)
-	sr, err := lc.Conn.Search(searchRequest)
+	sr, err := Conn.Search(searchRequest)
 	if err != nil {
 		return
 	}
