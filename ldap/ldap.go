@@ -11,6 +11,7 @@ import (
 type LDAP_CONFIG struct {
 	Addr       string   `json:"addr"`
 	BaseDn     string   `json:"baseDn"`
+	UserDn     string   `json:"userDn"`
 	BindDn     string   `json:"bindDn`
 	BindPass   string   `json:"bindPass"`
 	AuthFilter string   `json:"authFilter"`
@@ -24,6 +25,11 @@ var Conn *ldap.Conn
 type LDAP_RESULT struct {
 	DN         string              `json:"dn"`
 	Attributes map[string][]string `json:"attributes"`
+}
+
+type Attribute struct {
+	Type string
+	Vals []string
 }
 
 func (lc *LDAP_CONFIG) Close() {
@@ -60,7 +66,7 @@ func (lc *LDAP_CONFIG) Connect() (err error) {
 
 func (lc *LDAP_CONFIG) Auth(username, password string) (success bool, err error) {
 	searchRequest := ldap.NewSearchRequest(
-		lc.BaseDn, // The base dn to search
+		lc.UserDn,
 		ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
 		fmt.Sprintf(lc.AuthFilter, username), // The filter to apply
 		lc.Attributes,                        // A list attributes to retrieve
@@ -93,7 +99,7 @@ func (lc *LDAP_CONFIG) Auth(username, password string) (success bool, err error)
 
 func (lc *LDAP_CONFIG) Search_User(username string) (user LDAP_RESULT, err error) {
 	searchRequest := ldap.NewSearchRequest(
-		lc.BaseDn, // The base dn to search
+		lc.UserDn,
 		ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
 		fmt.Sprintf(lc.AuthFilter, username), // The filter to apply
 		lc.Attributes,                        // A list attributes to retrieve
@@ -124,7 +130,7 @@ func (lc *LDAP_CONFIG) Search_User(username string) (user LDAP_RESULT, err error
 
 func (lc *LDAP_CONFIG) Search(SearchFilter string) (results []LDAP_RESULT, err error) {
 	searchRequest := ldap.NewSearchRequest(
-		lc.BaseDn, // The base dn to search
+		lc.UserDn,
 		ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
 		SearchFilter,  // The filter to apply
 		lc.Attributes, // A list attributes to retrieve
@@ -150,4 +156,23 @@ func (lc *LDAP_CONFIG) Search(SearchFilter string) (results []LDAP_RESULT, err e
 		results = append(results, result)
 	}
 	return
+}
+
+func (lc *LDAP_CONFIG) Add(username, mail, uidNumber, gidNumber, password string) error {
+	add := ldap.NewAddRequest(
+		"cn="+username+","+lc.UserDn,
+		nil,
+	)
+	add.Attribute("objectClass", []string{"top", "shadowAccount", "posixAccount", "person", "organizationalPerson", "inetOrgPerson"})
+	add.Attribute("uid", []string{username})
+	add.Attribute("cn", []string{username})
+	add.Attribute("sn", []string{username})
+	add.Attribute("mail", []string{mail})
+	add.Attribute("uidNumber", []string{uidNumber})
+	add.Attribute("gidNumber", []string{gidNumber})
+	add.Attribute("loginShell", []string{"/bin/bash"})
+	add.Attribute("homeDirectory", []string{"/home/" + username})
+	add.Attribute("userPassword", []string{password})
+	err := Conn.Add(add)
+	return err
 }

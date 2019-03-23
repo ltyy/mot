@@ -49,9 +49,12 @@ func main() {
 	}
 	defer ad.Close()
 
-	success, err := ad.Auth("zhangsan", "123456")
+	success, err := ad.Auth("lisi", "123456")
 	if err != nil {
 		fmt.Println(err)
 	}
 	fmt.Println(success)
+
+	// rr := ad.Add("lisi", "lisi@wps.cn", "10111", "10111", "123456")
+	// fmt.Println(rr)
 }
